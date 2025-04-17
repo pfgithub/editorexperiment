@@ -211,7 +211,7 @@ const state: State = {
     cursor: {
         at: rootNode,
         anchor: 0,
-        cursor: 1,
+        cursor: 0,
     },
 };
 
@@ -226,14 +226,28 @@ function render() {
 document.addEventListener('keydown', (event) => {
     console.log("start", state.cursor)
     if(event.key === 'ArrowRight') {
-        state.cursor.cursor++;
-        state.cursor.cursor = Math.min(state.cursor.cursor, state.cursor.at.children.length);
-        state.cursor.anchor = state.cursor.cursor - 1;
+        const prev_min = Math.min(state.cursor.cursor, state.cursor.anchor);
+        const prev_max = Math.max(state.cursor.cursor, state.cursor.anchor);
+        if(prev_min === prev_max) {
+            const addone = Math.min(prev_max + 1, state.cursor.at.children.length);
+            state.cursor.cursor = prev_max;
+            state.cursor.anchor = addone;
+        }else{
+            state.cursor.cursor = prev_max;
+            state.cursor.anchor = prev_max;
+        }
     }
     if(event.key === 'ArrowLeft') {
-        state.cursor.cursor--;
-        state.cursor.cursor = Math.max(state.cursor.cursor, 1);
-        state.cursor.anchor = state.cursor.cursor - 1;
+        const prev_min = Math.min(state.cursor.cursor, state.cursor.anchor);
+        const prev_max = Math.max(state.cursor.cursor, state.cursor.anchor);
+        if(prev_min === prev_max) {
+            const addone = Math.max(prev_min - 1, 0);
+            state.cursor.cursor = prev_min;
+            state.cursor.anchor = addone;
+        }else{
+            state.cursor.cursor = prev_min;
+            state.cursor.anchor = prev_min;
+        }
     }
     if(event.key === 'ArrowUp') {
         const current_ch_num = state.cursor.at.parent?.children.indexOf(state.cursor.at);
@@ -248,7 +262,7 @@ document.addEventListener('keydown', (event) => {
         console.log(state.cursor, newtarget);
         if(typeof newtarget === 'object') {
             state.cursor.at = newtarget;
-            state.cursor.cursor = 1;
+            state.cursor.cursor = 0;
             state.cursor.anchor = 0;
         }
     }
