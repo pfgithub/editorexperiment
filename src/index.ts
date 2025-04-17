@@ -1,5 +1,6 @@
 type TreeNode = {
     parent: TreeNode | null;
+    type: "[" | "{" | "(" | "\"" | "'" | "<" | "atom" | "root",
     children: TreeNode[] | string;
     newline?: boolean;
 };
@@ -15,35 +16,68 @@ type State = {
 // then if you want to insert you can insert after or before
 
 const newline = Symbol('newline');
-type Sample = string | Sample[] | typeof newline;
-const sample: Sample = [newline,
-    ["print", ["hello world"]],
-    ["if", ["condition", "==", "false"], [
-        newline, ["print", ["condition was true"]],
-    ], "else", [
-        newline, ["print", ["condition was false"]],
-    ]]
-];
+type SampleChild = Sample[] | string;
+type Sample = {kind: TreeNode["type"], children: SampleChild, newline?: boolean};
+function node(kind: TreeNode["type"], children: SampleChild, newline?: boolean): Sample {
+    return {kind, children, newline};
+}
+const sample = node("[", [
+    node("[", [node("atom", "print"), node("[", [node('"', "hello world")])], false),
+    node("[", [
+        node("atom", "if"),
+        node("[", [
+            node("atom", "condition"),
+            node("atom", "=="),
+            node("atom", "false"),
+        ]),
+        node("{", [
+            node("[", [
+                node("atom", "print"),
+                node("[", [node('"', "condition was true")])
+            ]),
+        ], true),
+        node("atom", "else"),
+        node("{", [
+            node("[", [
+                node("atom", "print"),
+                node("[", [node('"', "condition was false")])
+            ]),
+        ], true),
+    ]),
+], true);
 function convertToNode(parent: TreeNode | null, sample: Sample): TreeNode {
-    if (typeof sample === 'string') {
-        return {
-            parent,
-            children: sample,
-        };
-    }
-    if(sample === newline) throw new Error("error");
     const node: TreeNode = {
         parent,
         children: [],
+        type: sample.kind,
+        newline: sample.newline,
     };
-    for (const item of sample) {
-        if(item === newline) {
-            node.newline = true;
-            continue;
-        }
+    if(typeof sample.children === 'string') {
+        node.children = sample.children;
+    }else for (const item of sample.children) {
         (node.children as TreeNode[]).push(convertToNode(node, item));
     }
     return node;
+}
+
+const node_type_keybinds: Record<string, TreeNode["type"]> = {
+    "[": "[",
+    "{": "{",
+    "(": "(",
+    "\"": "\"",
+    "'": "'",
+    "<": "<",
+}
+function getStartEnd(type: TreeNode["type"], newline: boolean): [string, string] {
+    switch(type) {
+        case "[": return ["[", "]"];
+        case "{": return ["{", "}"];
+        case "(": return ["(", ")"];
+        case "\"": return ["\"", "\""];
+        case "'": return ["'", "'"];
+        case "<": return ["<", ">"];
+        case "atom": return newline ? ["@\"", "\""] : ["", ""];
+    }
 }
 
 function renderNode(state: State, node: TreeNode): Node {
@@ -51,77 +85,123 @@ function renderNode(state: State, node: TreeNode): Node {
     let sel_min = Math.min(state.cursor.cursor, state.cursor.anchor);
     let sel_max = Math.max(state.cursor.cursor, state.cursor.anchor);
 
-    if (typeof node.children === 'string') {
-        let nodestr = node.children;
-        if(sel) {
-            const fragment = document.createDocumentFragment();
-            fragment.appendChild(document.createTextNode(nodestr.slice(0, sel_min)));
-            const selected_span = document.createElement("span");
-            selected_span.setAttribute("style", "background-color: blue;");
-            selected_span.appendChild(document.createTextNode(nodestr.slice(sel_min, sel_max)));
-            fragment.appendChild(selected_span);
-            fragment.appendChild(document.createTextNode(nodestr.slice(sel_max)));
-            return fragment;
-        }
-        return document.createTextNode(nodestr);
-    }
+    // if (typeof node.children === 'string') {
+    //     let nodestr = node.children;
+    //     const fragment = document.createElement("span");
+    //     if(node.newline || node.children.includes(" ")) fragment.appendChild(document.createTextNode('"'));
+    //     if(sel) {
+    //         fragment.appendChild(document.createTextNode(nodestr.slice(0, sel_min)));
+    //         const selected_span = document.createElement("span");
+    //         selected_span.classList.add("selected");
+    //         selected_span.appendChild(document.createTextNode(nodestr.slice(sel_min, sel_max)));
+    //         fragment.appendChild(selected_span);
+    //         fragment.appendChild(document.createTextNode(nodestr.slice(sel_max)));
+    //     }else{
+    //         fragment.appendChild(document.createTextNode(nodestr));
+    //     }
+    //     if(node.newline || node.children.includes(" ")) fragment.appendChild(document.createTextNode('"'));
+    //     return fragment;
+    // }
 
-    const ch = document.createElement("div");
-    ch.setAttribute("style", "display: inline;");
-    ch.appendChild(document.createTextNode("["));
-    if(node.newline) {
-        const subch = document.createElement("div");
-        subch.setAttribute("style", "display: flex; flex-direction: column; margin-left: 10px;");
-        let i = 0;
-        const addcursor = () => {
-            if(i === sel_min || i === sel_max) {
+    const ch = document.createElement("span");
+    const [node_start, node_end] = getStartEnd(node.type, node.newline);
+    ch.appendChild(document.createTextNode( node_start ));
+    let i = 0;
+    const addcursor = (tgt: HTMLElement, mode: "horizontal" | "vertical") => {
+        if(sel && i === sel_min && sel_min === sel_max) {
+            if(mode === "vertical") {
+                const el = document.createElement("span");
+                el.setAttribute("style", "position: relative");
+                const line = document.createElement("div");
+                line.setAttribute("style", "position: absolute; background-color: blue; height: 100%; width: 2px; left: 50%;");
+                el.appendChild(line);
+                tgt.appendChild(el);
+            }else if(mode === "horizontal") {
                 const el = document.createElement("div");
                 el.setAttribute("style", "position: relative;");
                 const line = document.createElement("div");
                 line.setAttribute("style", "position: absolute; background-color: blue; height: 2px; width: 100%; top: 50%;");
                 el.appendChild(line);
-                subch.appendChild(el);
+                tgt.appendChild(el);
             }
         }
-        for (const child of node.children) {
-            if(sel && i === 0) addcursor();
-            const selected = sel && i >= sel_min && i < sel_max;
-            const chcontainer = document.createElement("div");
-            chcontainer.appendChild(renderNode(state, child));
-            if(selected) {
-                chcontainer.setAttribute("style", "background-color: blue;");
-            }
+    }
+    if(node.newline) {
+        const subch = document.createElement("div");
+        subch.setAttribute("style", "display: flex; flex-direction: column; padding-left: 10px;");
+        if(typeof node.children === "string") {
+            const chcontainer = document.createElement("span");
+            let str_sel_min = sel ? sel_min : 0;
+            let str_sel_max = sel ? sel_max : node.children.length;
+
+            addcursor(chcontainer, "vertical");
+            chcontainer.appendChild(document.createTextNode(node.children.slice(0, str_sel_min)));
+            i += str_sel_min;
+            addcursor(chcontainer, "vertical");
+            chcontainer.appendChild(document.createTextNode(node.children.slice(str_sel_min, str_sel_max)));
+            i += str_sel_max - str_sel_min;
+            addcursor(chcontainer, "vertical");
+            chcontainer.appendChild(document.createTextNode(node.children.slice(str_sel_max)));
+            i += node.children.length - str_sel_max;
+            addcursor(chcontainer, "vertical");
+
             subch.appendChild(chcontainer);
-            i += 1;
-            if(sel) addcursor();
+        }else{
+            if(i === 0) addcursor(subch, "horizontal");
+            for (const child of node.children) {
+                const selected = sel && i >= sel_min && i < sel_max;
+                const chcontainer = document.createElement("div");
+                chcontainer.appendChild(renderNode(state, child));
+                if(selected) {
+                    chcontainer.classList.add("selected");
+                }
+                subch.appendChild(chcontainer);
+                i += 1;
+                addcursor(subch, "horizontal");
+            }
         }
         ch.appendChild(subch);
     }else{
-        let idx = 0;
-        const addcursor = () => {
-            if(idx >= sel_min && idx <= sel_max) {
-                const el = document.createElement("div");
-                el.setAttribute("style", "position: relative;display:inline");
-                const line = document.createElement("div");
-                line.setAttribute("style", "position: absolute; background-color: blue; height: 100%; width: 2px; left: 50%;");
-                el.appendChild(line);
-                ch.appendChild(el);
-            }
-        }
-        for (const child of node.children) {
-            if(sel && idx === 0) addcursor();
-            if(idx !== 0) ch.appendChild(document.createTextNode(" "));
+        if(typeof node.children === "string") {
             const chcontainer = document.createElement("span");
-            chcontainer.appendChild(renderNode(state, child));
-            if(sel && idx >= sel_min && idx < sel_max) {
-                chcontainer.setAttribute("style", "background-color: blue;");
+            let str_sel_min = sel ? sel_min : 0;
+            let str_sel_max = sel ? sel_max : node.children.length;
+
+            addcursor(chcontainer, "vertical");
+            chcontainer.appendChild(document.createTextNode(node.children.slice(0, str_sel_min)));
+            i += str_sel_min;
+            addcursor(chcontainer, "vertical");
+            if(sel && i >= sel_min && i + (str_sel_max - str_sel_min) <= sel_max) {
+                const selected_span = document.createElement("span");
+                selected_span.classList.add("selected");
+                selected_span.appendChild(document.createTextNode(node.children.slice(str_sel_min, str_sel_max)));
+                chcontainer.appendChild(selected_span);
+            }else{
+                chcontainer.appendChild(document.createTextNode(node.children.slice(str_sel_min, str_sel_max)));
             }
+            i += str_sel_max - str_sel_min;
+            addcursor(chcontainer, "vertical");
+            chcontainer.appendChild(document.createTextNode(node.children.slice(str_sel_max)));
+            i += node.children.length - str_sel_max;
+            addcursor(chcontainer, "vertical");
+
             ch.appendChild(chcontainer);
-            idx++;
-            if(sel) addcursor();
+        }else {
+            addcursor(ch, "vertical");
+            for (const child of node.children) {
+                if(i !== 0) ch.appendChild(document.createTextNode(" "));
+                const chcontainer = document.createElement("span");
+                chcontainer.appendChild(renderNode(state, child));
+                if(sel && i >= sel_min && i < sel_max) {
+                    chcontainer.classList.add("selected");
+                }
+                ch.appendChild(chcontainer);
+                i++;
+                addcursor(ch, "vertical");
+            }
         }
     }
-    ch.appendChild(document.createTextNode("]"));
+    ch.appendChild(document.createTextNode( node_end ));
     return ch;
 }
 
@@ -170,6 +250,39 @@ document.addEventListener('keydown', (event) => {
             state.cursor.at = newtarget;
             state.cursor.cursor = 1;
             state.cursor.anchor = 0;
+        }
+    }
+    if(event.key === 'Enter') {
+        const newtarget = state.cursor.at.children[Math.min(state.cursor.cursor, state.cursor.anchor)]!;
+        if(typeof newtarget === 'object') {
+            newtarget.newline = !newtarget.newline;
+        }
+    }
+    if(event.key === "Backspace") {
+        // unwrap the selected node
+        const chidx = Math.min(state.cursor.cursor, state.cursor.anchor);
+        const newtarget = state.cursor.at.children[chidx]!;
+        if(typeof newtarget === 'object' && Array.isArray(state.cursor.at.children)) {
+            const newch = typeof newtarget.children === 'string' ? [] : newtarget.children;
+            state.cursor.at.children.splice(chidx, 1, ...newch);
+            state.cursor.anchor = chidx;
+            state.cursor.cursor = chidx + newch.length;
+        }
+    }
+    // handle '{'
+    if(node_type_keybinds[event.key]) {
+        const chidx = Math.min(state.cursor.cursor, state.cursor.anchor);
+        const newtarget = state.cursor.at.children[chidx]!;
+        if(typeof newtarget === 'object' && Array.isArray(state.cursor.at.children)) {
+            const kind = node_type_keybinds[event.key]!;
+            const wrapped: TreeNode = {
+                parent: state.cursor.at,
+                children: [newtarget],
+                type: kind,
+                newline: false,
+            };
+            newtarget.parent = wrapped;
+            state.cursor.at.children.splice(chidx, 1, wrapped);
         }
     }
     console.log("end", state.cursor)
