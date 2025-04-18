@@ -275,9 +275,18 @@ document.addEventListener('keydown', (event) => {
         }
     }
     if(event.key === 'Enter') {
-        const newtarget = state.cursor.at.children[Math.min(state.cursor.cursor, state.cursor.anchor)]!;
-        if(typeof newtarget === 'object') {
-            newtarget.newline = !newtarget.newline;
+        const selmin = Math.min(state.cursor.cursor, state.cursor.anchor);
+        const selmax = Math.max(state.cursor.cursor, state.cursor.anchor);
+        if(selmin === selmax) {
+            // although inside a string, maybe you expect enter to create a new line in the string
+            // not to toggle its newline-ness
+            // which is a pretty fair expectation
+            state.cursor.at.newline = !state.cursor.at.newline;
+        }else if(Array.isArray(state.cursor.at.children)) {
+            const targets = state.cursor.at.children.slice(selmin, selmax)!;
+            for(const target of targets) {
+                target.newline = !target.newline;
+            }
         }
     }
     if(event.key === "Backspace") {
