@@ -281,14 +281,24 @@ document.addEventListener('keydown', (event) => {
         }
     }
     if(event.key === "Backspace") {
-        // unwrap the selected node
-        const chidx = Math.min(state.cursor.cursor, state.cursor.anchor);
-        const newtarget = state.cursor.at.children[chidx]!;
-        if(typeof newtarget === 'object' && Array.isArray(state.cursor.at.children)) {
-            const newch = typeof newtarget.children === 'string' ? [] : newtarget.children;
-            state.cursor.at.children.splice(chidx, 1, ...newch);
-            state.cursor.anchor = chidx;
-            state.cursor.cursor = chidx + newch.length;
+        // unwrap the selected node(s)
+        const chmin = Math.min(state.cursor.cursor, state.cursor.anchor);
+        const chmax = Math.max(state.cursor.cursor, state.cursor.anchor);
+        if(Array.isArray(state.cursor.at.children)) {
+            const targets = state.cursor.at.children.slice(chmin, chmax);
+            const nres: TreeNode[] = [];
+            for (const target of targets) {
+                if(typeof target.children === "string") {
+                    nres.push(target);
+                    continue; // don't splat strings
+                }
+                for(const child of target.children) {
+                    nres.push(child);
+                }
+            }
+            state.cursor.at.children.splice(chmin, chmax - chmin, ...nres);
+            state.cursor.anchor = chmin;
+            state.cursor.cursor = chmin + nres.length;
         }
     }
     // handle '{'
