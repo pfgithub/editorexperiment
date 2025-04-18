@@ -67,7 +67,15 @@ const node_type_keybinds: Record<string, TreeNode["type"]> = {
     "\"": "\"",
     "'": "'",
     "<": "<",
-}
+};
+const node_exit_type_keybinds: Record<string, TreeNode["type"]> = {
+    "]": "[",
+    "}": "{",
+    ")": "(",
+    "\"": "\"",
+    "'": "'",
+    ">": "<",
+};
 function getStartEnd(type: TreeNode["type"], newline: boolean): [string, string] {
     switch(type) {
         case "[": return ["[", "]"];
@@ -286,17 +294,34 @@ document.addEventListener('keydown', (event) => {
     // handle '{'
     if(node_type_keybinds[event.key]) {
         const chidx = Math.min(state.cursor.cursor, state.cursor.anchor);
-        const newtarget = state.cursor.at.children[chidx]!;
-        if(typeof newtarget === 'object' && Array.isArray(state.cursor.at.children)) {
+        const maxidx = Math.max(state.cursor.cursor, state.cursor.anchor);
+        const newtarget = state.cursor.at.children.slice(chidx, maxidx)!;
+        if(Array.isArray(state.cursor.at.children)) {
             const kind = node_type_keybinds[event.key]!;
             const wrapped: TreeNode = {
                 parent: state.cursor.at,
-                children: [newtarget],
+                children: newtarget,
                 type: kind,
                 newline: false,
             };
             newtarget.parent = wrapped;
-            state.cursor.at.children.splice(chidx, 1, wrapped);
+            state.cursor.at.children.splice(chidx, maxidx - chidx, wrapped);
+            state.cursor.anchor = chidx;
+            state.cursor.cursor = chidx + 1;
+            if(chidx === maxidx) {
+                // insert; go inside
+                state.cursor.at = wrapped;
+                state.cursor.anchor = 0;
+                state.cursor.cursor = 0;
+            }
+        }
+    }
+    if(node_exit_type_keybinds[event.key]) {
+        const current_ch_num = state.cursor.at.parent?.children.indexOf(state.cursor.at);
+        if(current_ch_num != null) {
+            state.cursor.at = state.cursor.at.parent!;
+            state.cursor.cursor = current_ch_num + 1;
+            state.cursor.anchor = current_ch_num + 1;
         }
     }
     console.log("end", state.cursor)
