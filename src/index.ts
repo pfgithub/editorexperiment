@@ -21,7 +21,7 @@ type Sample = {kind: TreeNode["type"], children: SampleChild, newline?: boolean}
 function node(kind: TreeNode["type"], children: SampleChild, newline?: boolean): Sample {
     return {kind, children, newline};
 }
-const sample = node("[", [
+const sample = node("root", [
     node("[", [node("atom", "print"), node("[", [node('"', "hello world")])], false),
     node("[", [
         node("atom", "if"),
@@ -75,8 +75,9 @@ const node_exit_type_keybinds: Record<string, TreeNode["type"]> = {
     "\"": "\"",
     "'": "'",
     ">": "<",
+    " ": "atom",
 };
-function getStartEnd(type: TreeNode["type"], newline: boolean): [string, string] {
+function getStartEnd(type: TreeNode["type"], needs_quote: boolean): [string, string] {
     switch(type) {
         case "[": return ["[", "]"];
         case "{": return ["{", "}"];
@@ -84,7 +85,8 @@ function getStartEnd(type: TreeNode["type"], newline: boolean): [string, string]
         case "\"": return ["\"", "\""];
         case "'": return ["'", "'"];
         case "<": return ["<", ">"];
-        case "atom": return newline ? ["@\"", "\""] : ["", ""];
+        case "atom": return needs_quote ? ["@\"", "\""] : ["", ""];
+        case "root": return ["", ""];
     }
 }
 
@@ -111,8 +113,39 @@ function renderNode(state: State, node: TreeNode): Node {
     //     return fragment;
     // }
 
-    const ch = document.createElement("span");
-    const [node_start, node_end] = getStartEnd(node.type, node.newline);
+    let str_sel_min: number | undefined;
+    let str_sel_max: number | undefined;
+    let left_stringified: string | undefined;
+    let mid_stringified: string | undefined;
+    let right_stringified: string | undefined;
+    let needs_newline: boolean;
+    let needs_quote: boolean;
+    if(typeof node.children === "string") {
+        str_sel_min = sel ? sel_min : 0;
+        str_sel_max = sel ? sel_max : node.children.length;
+        let left = node.children.slice(0, str_sel_min);
+        let mid = node.children.slice(str_sel_min, str_sel_max);
+        let right = node.children.slice(str_sel_max);
+        left_stringified = JSON.stringify(left);
+        left_stringified = left_stringified.substring(1, left_stringified.length - 1);
+        mid_stringified = JSON.stringify(mid);
+        mid_stringified = mid_stringified.substring(1, mid_stringified.length - 1);
+        right_stringified = JSON.stringify(right);
+        right_stringified = right_stringified.substring(1, right_stringified.length - 1);
+        needs_newline = node.children.includes("\n");
+        if(node.type === "atom") {
+            needs_quote = node.children.match(/[^a-zA-Z0-9_-]/);
+        }else{
+            needs_quote = left !== left_stringified || mid !== mid_stringified || right !== right_stringified;
+        }
+    }else{
+        needs_newline = node.newline ?? false;
+        needs_quote = false;
+    }
+
+    const ch = document.createElement(typeof node.children === "string" ? "s-leaf" : "s-node");
+    ch.setAttribute("style", "display: inline;");
+    const [node_start, node_end] = getStartEnd(node.type, needs_quote ?? false);
     ch.appendChild(document.createTextNode( node_start ));
     let i = 0;
     const addcursor = (tgt: HTMLElement, mode: "horizontal" | "vertical") => {
@@ -134,32 +167,21 @@ function renderNode(state: State, node: TreeNode): Node {
             }
         }
     }
-    if(node.newline) {
+    if(needs_newline) {
         const subch = document.createElement("div");
-        subch.setAttribute("style", "display: flex; flex-direction: column; padding-left: 10px;");
+        subch.setAttribute("style", "display: flex; flex-direction: column; " + (node.type !== "root" ? "padding-left: 10px;" : ""));
         if(typeof node.children === "string") {
             const chcontainer = document.createElement("span");
-            let str_sel_min = sel ? sel_min : 0;
-            let str_sel_max = sel ? sel_max : node.children.length;
-            let left = node.children.slice(0, str_sel_min);
-            let mid = node.children.slice(str_sel_min, str_sel_max);
-            let right = node.children.slice(str_sel_max);
-            let left_stringified = JSON.stringify(left);
-            left_stringified = left_stringified.substring(1, left_stringified.length - 1);
-            let mid_stringified = JSON.stringify(mid);
-            mid_stringified = mid_stringified.substring(1, mid_stringified.length - 1);
-            let right_stringified = JSON.stringify(right);
-            right_stringified = right_stringified.substring(1, right_stringified.length - 1);
 
             addcursor(chcontainer, "vertical");
-            chcontainer.appendChild(document.createTextNode(left_stringified));
-            i += str_sel_min;
+            chcontainer.appendChild(document.createTextNode(left_stringified!));
+            i += str_sel_min!;
             addcursor(chcontainer, "vertical");
-            chcontainer.appendChild(document.createTextNode(mid_stringified));
-            i += str_sel_max - str_sel_min;
+            chcontainer.appendChild(document.createTextNode(mid_stringified!));
+            i += str_sel_max! - str_sel_min!;
             addcursor(chcontainer, "vertical");
-            chcontainer.appendChild(document.createTextNode(right_stringified));
-            i += node.children.length - str_sel_max;
+            chcontainer.appendChild(document.createTextNode(right_stringified!));
+            i += node.children.length - str_sel_max!;
             addcursor(chcontainer, "vertical");
 
             subch.appendChild(chcontainer);
@@ -181,35 +203,23 @@ function renderNode(state: State, node: TreeNode): Node {
     }else{
         if(typeof node.children === "string") {
             const chcontainer = document.createElement("span");
-            let str_sel_min = sel ? sel_min : 0;
-            let str_sel_max = sel ? sel_max : node.children.length;
-
-            let left = node.children.slice(0, str_sel_min);
-            let mid = node.children.slice(str_sel_min, str_sel_max);
-            let right = node.children.slice(str_sel_max);
-            let left_stringified = JSON.stringify(left);
-            left_stringified = left_stringified.substring(1, left_stringified.length - 1);
-            let mid_stringified = JSON.stringify(mid);
-            mid_stringified = mid_stringified.substring(1, mid_stringified.length - 1);
-            let right_stringified = JSON.stringify(right);
-            right_stringified = right_stringified.substring(1, right_stringified.length - 1);
 
             addcursor(chcontainer, "vertical");
-            chcontainer.appendChild(document.createTextNode(left_stringified));
-            i += str_sel_min;
+            chcontainer.appendChild(document.createTextNode(left_stringified!));
+            i += str_sel_min!;
             addcursor(chcontainer, "vertical");
-            if(sel && i >= sel_min && i + (str_sel_max - str_sel_min) <= sel_max) {
+            if(sel && i >= sel_min && i + (str_sel_max! - str_sel_min!) <= sel_max) {
                 const selected_span = document.createElement("span");
                 selected_span.classList.add("selected");
-                selected_span.appendChild(document.createTextNode(mid_stringified));
+                selected_span.appendChild(document.createTextNode(mid_stringified!));
                 chcontainer.appendChild(selected_span);
             }else{
-                chcontainer.appendChild(document.createTextNode(mid_stringified));
+                chcontainer.appendChild(document.createTextNode(mid_stringified!));
             }
-            i += str_sel_max - str_sel_min;
+            i += str_sel_max! - str_sel_min!;
             addcursor(chcontainer, "vertical");
-            chcontainer.appendChild(document.createTextNode(right_stringified));
-            i += node.children.length - str_sel_max;
+            chcontainer.appendChild(document.createTextNode(right_stringified!));
+            i += node.children.length - str_sel_max!;
             addcursor(chcontainer, "vertical");
 
             ch.appendChild(chcontainer);
@@ -243,6 +253,7 @@ const state: State = {
 };
 
 const root = document.getElementById('root') as HTMLDivElement;
+root.setAttribute("style", "white-space: pre-wrap;");
 
 function render() {
     root.innerHTML = '';
@@ -301,7 +312,7 @@ document.addEventListener('keydown', (event) => {
         }
         return;
     }
-    if(event.key === 'Enter') {
+    if(event.key === 'Enter' && typeof state.cursor.at.children !== "string") {
         const selmin = Math.min(state.cursor.cursor, state.cursor.anchor);
         const selmax = Math.max(state.cursor.cursor, state.cursor.anchor);
         if(selmin === selmax) {
@@ -348,7 +359,7 @@ document.addEventListener('keydown', (event) => {
             const kind = node_type_keybinds[event.key]!;
             const wrapped: TreeNode = {
                 parent: state.cursor.at,
-                children: newtarget,
+                children: newtarget.length === 0 && kind === "\"" ? "" : newtarget,
                 type: kind,
                 newline: false,
             };
@@ -366,16 +377,20 @@ document.addEventListener('keydown', (event) => {
         return;
     }
     if(node_exit_type_keybinds[event.key]) {
-        const current_ch_num = state.cursor.at.parent?.children.indexOf(state.cursor.at);
-        if(current_ch_num != null) {
-            state.cursor.at = state.cursor.at.parent!;
-            state.cursor.cursor = current_ch_num + 1;
-            state.cursor.anchor = current_ch_num + 1;
+        const exit_type = node_exit_type_keybinds[event.key]!;
+        if(state.cursor.at.type === exit_type) {
+            const current_ch_num = state.cursor.at.parent?.children.indexOf(state.cursor.at);
+            if(current_ch_num != null) {
+                state.cursor.at = state.cursor.at.parent!;
+                state.cursor.cursor = current_ch_num + 1;
+                state.cursor.anchor = current_ch_num + 1;
+            }
+            return;
         }
-        return;
     }
-    if(event.key.length === 1 && event.key !== " ") {
-        const char = event.key;
+    if(event.key.length === 1 || event.key === "Enter") {
+        let char = event.key;
+        if(char === "Enter") char = "\n";
         const chidx = Math.min(state.cursor.cursor, state.cursor.anchor);
         const maxidx = Math.max(state.cursor.cursor, state.cursor.anchor);
         if(Array.isArray(state.cursor.at.children)) {
