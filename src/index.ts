@@ -238,7 +238,7 @@ document.addEventListener('keydown', (event) => {
         const prev_max = Math.max(state.cursor.cursor, state.cursor.anchor);
         if(prev_min === prev_max) {
             const addone = Math.min(prev_max + 1, state.cursor.at.children.length);
-            state.cursor.cursor = prev_max;
+            state.cursor.cursor = addone;
             state.cursor.anchor = addone;
         }else{
             state.cursor.cursor = prev_max;
@@ -250,7 +250,7 @@ document.addEventListener('keydown', (event) => {
         const prev_max = Math.max(state.cursor.cursor, state.cursor.anchor);
         if(prev_min === prev_max) {
             const addone = Math.max(prev_min - 1, 0);
-            state.cursor.cursor = prev_min;
+            state.cursor.cursor = addone;
             state.cursor.anchor = addone;
         }else{
             state.cursor.cursor = prev_min;
@@ -261,7 +261,7 @@ document.addEventListener('keydown', (event) => {
         const current_ch_num = state.cursor.at.parent?.children.indexOf(state.cursor.at);
         if(current_ch_num != null) {
             state.cursor.at = state.cursor.at.parent!;
-            state.cursor.cursor = current_ch_num + 1;
+            state.cursor.cursor = current_ch_num;
             state.cursor.anchor = current_ch_num;
         }
     }
