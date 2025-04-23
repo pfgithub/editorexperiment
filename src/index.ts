@@ -141,15 +141,24 @@ function renderNode(state: State, node: TreeNode): Node {
             const chcontainer = document.createElement("span");
             let str_sel_min = sel ? sel_min : 0;
             let str_sel_max = sel ? sel_max : node.children.length;
+            let left = node.children.slice(0, str_sel_min);
+            let mid = node.children.slice(str_sel_min, str_sel_max);
+            let right = node.children.slice(str_sel_max);
+            let left_stringified = JSON.stringify(left);
+            left_stringified = left_stringified.substring(1, left_stringified.length - 1);
+            let mid_stringified = JSON.stringify(mid);
+            mid_stringified = mid_stringified.substring(1, mid_stringified.length - 1);
+            let right_stringified = JSON.stringify(right);
+            right_stringified = right_stringified.substring(1, right_stringified.length - 1);
 
             addcursor(chcontainer, "vertical");
-            chcontainer.appendChild(document.createTextNode(node.children.slice(0, str_sel_min)));
+            chcontainer.appendChild(document.createTextNode(left_stringified));
             i += str_sel_min;
             addcursor(chcontainer, "vertical");
-            chcontainer.appendChild(document.createTextNode(node.children.slice(str_sel_min, str_sel_max)));
+            chcontainer.appendChild(document.createTextNode(mid_stringified));
             i += str_sel_max - str_sel_min;
             addcursor(chcontainer, "vertical");
-            chcontainer.appendChild(document.createTextNode(node.children.slice(str_sel_max)));
+            chcontainer.appendChild(document.createTextNode(right_stringified));
             i += node.children.length - str_sel_max;
             addcursor(chcontainer, "vertical");
 
@@ -175,21 +184,31 @@ function renderNode(state: State, node: TreeNode): Node {
             let str_sel_min = sel ? sel_min : 0;
             let str_sel_max = sel ? sel_max : node.children.length;
 
+            let left = node.children.slice(0, str_sel_min);
+            let mid = node.children.slice(str_sel_min, str_sel_max);
+            let right = node.children.slice(str_sel_max);
+            let left_stringified = JSON.stringify(left);
+            left_stringified = left_stringified.substring(1, left_stringified.length - 1);
+            let mid_stringified = JSON.stringify(mid);
+            mid_stringified = mid_stringified.substring(1, mid_stringified.length - 1);
+            let right_stringified = JSON.stringify(right);
+            right_stringified = right_stringified.substring(1, right_stringified.length - 1);
+
             addcursor(chcontainer, "vertical");
-            chcontainer.appendChild(document.createTextNode(node.children.slice(0, str_sel_min)));
+            chcontainer.appendChild(document.createTextNode(left_stringified));
             i += str_sel_min;
             addcursor(chcontainer, "vertical");
             if(sel && i >= sel_min && i + (str_sel_max - str_sel_min) <= sel_max) {
                 const selected_span = document.createElement("span");
                 selected_span.classList.add("selected");
-                selected_span.appendChild(document.createTextNode(node.children.slice(str_sel_min, str_sel_max)));
+                selected_span.appendChild(document.createTextNode(mid_stringified));
                 chcontainer.appendChild(selected_span);
             }else{
-                chcontainer.appendChild(document.createTextNode(node.children.slice(str_sel_min, str_sel_max)));
+                chcontainer.appendChild(document.createTextNode(mid_stringified));
             }
             i += str_sel_max - str_sel_min;
             addcursor(chcontainer, "vertical");
-            chcontainer.appendChild(document.createTextNode(node.children.slice(str_sel_max)));
+            chcontainer.appendChild(document.createTextNode(right_stringified));
             i += node.children.length - str_sel_max;
             addcursor(chcontainer, "vertical");
 
@@ -232,7 +251,11 @@ function render() {
 }
 
 document.addEventListener('keydown', (event) => {
-    console.log("start", state.cursor)
+    console.log("start", state.cursor, event.key);
+    using _ = {[Symbol.dispose]: () => {
+        console.log("end", state.cursor);
+        render();
+    }};
     if(event.key === 'ArrowRight') {
         const prev_min = Math.min(state.cursor.cursor, state.cursor.anchor);
         const prev_max = Math.max(state.cursor.cursor, state.cursor.anchor);
@@ -244,6 +267,7 @@ document.addEventListener('keydown', (event) => {
             state.cursor.cursor = prev_max;
             state.cursor.anchor = prev_max;
         }
+        return;
     }
     if(event.key === 'ArrowLeft') {
         const prev_min = Math.min(state.cursor.cursor, state.cursor.anchor);
@@ -256,6 +280,7 @@ document.addEventListener('keydown', (event) => {
             state.cursor.cursor = prev_min;
             state.cursor.anchor = prev_min;
         }
+        return;
     }
     if(event.key === 'ArrowUp') {
         const current_ch_num = state.cursor.at.parent?.children.indexOf(state.cursor.at);
@@ -264,6 +289,7 @@ document.addEventListener('keydown', (event) => {
             state.cursor.cursor = current_ch_num;
             state.cursor.anchor = current_ch_num;
         }
+        return;
     }
     if(event.key === 'ArrowDown') {
         const newtarget = state.cursor.at.children[Math.min(state.cursor.cursor, state.cursor.anchor)]!;
@@ -273,6 +299,7 @@ document.addEventListener('keydown', (event) => {
             state.cursor.cursor = 0;
             state.cursor.anchor = 0;
         }
+        return;
     }
     if(event.key === 'Enter') {
         const selmin = Math.min(state.cursor.cursor, state.cursor.anchor);
@@ -288,6 +315,7 @@ document.addEventListener('keydown', (event) => {
                 target.newline = !target.newline;
             }
         }
+        return;
     }
     if(event.key === "Backspace") {
         // unwrap the selected node(s)
@@ -309,6 +337,7 @@ document.addEventListener('keydown', (event) => {
             state.cursor.anchor = chmin;
             state.cursor.cursor = chmin + nres.length;
         }
+        return;
     }
     // handle '{'
     if(node_type_keybinds[event.key]) {
@@ -334,6 +363,7 @@ document.addEventListener('keydown', (event) => {
                 state.cursor.cursor = 0;
             }
         }
+        return;
     }
     if(node_exit_type_keybinds[event.key]) {
         const current_ch_num = state.cursor.at.parent?.children.indexOf(state.cursor.at);
@@ -342,8 +372,32 @@ document.addEventListener('keydown', (event) => {
             state.cursor.cursor = current_ch_num + 1;
             state.cursor.anchor = current_ch_num + 1;
         }
+        return;
     }
-    console.log("end", state.cursor)
-    render();
+    if(event.key.length === 1 && event.key !== " ") {
+        const char = event.key;
+        const chidx = Math.min(state.cursor.cursor, state.cursor.anchor);
+        const maxidx = Math.max(state.cursor.cursor, state.cursor.anchor);
+        if(Array.isArray(state.cursor.at.children)) {
+            const wrapped: TreeNode = {
+                parent: state.cursor.at,
+                children: char,
+                type: "atom",
+                newline: false,
+            };
+            state.cursor.at.children.splice(chidx, maxidx - chidx, wrapped);
+            state.cursor.at = wrapped;
+            state.cursor.anchor = char.length;
+            state.cursor.cursor = char.length;
+        }else{
+            const left = state.cursor.at.children.slice(0, chidx);
+            const mid = char;
+            const right = state.cursor.at.children.slice(chidx);
+            state.cursor.at.children = `${left}${mid}${right}`;
+            state.cursor.anchor += char.length;
+            state.cursor.cursor += char.length;
+        }
+        return;
+    }
 });
 render();
