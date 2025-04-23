@@ -134,7 +134,7 @@ function renderNode(state: State, node: TreeNode): Node {
         right_stringified = right_stringified.substring(1, right_stringified.length - 1);
         needs_newline = node.children.includes("\n");
         if(node.type === "atom") {
-            needs_quote = node.children.match(/[^a-zA-Z0-9_-]/);
+            needs_quote = !!node.children.match(/[^a-zA-Z0-9_-]/);
         }else{
             needs_quote = left !== left_stringified || mid !== mid_stringified || right !== right_stringified;
         }
